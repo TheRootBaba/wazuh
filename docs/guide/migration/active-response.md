@@ -785,6 +785,10 @@ To confirm the round trip: after the script sends `check_keys`, `wazuh-execd` wr
 
 The response document lands in `wazuh-active-responses*` (so the monitor fired), but the agent's `active-responses.log` shows nothing and no firewall rule appears. A common cause is an **Executable** field that names no file under `/var/ossec/active-response/bin/` — a 4.x name such as `firewall-drop`, a typo, or a **leading or trailing space** (e.g. `" block-ip"`). `wazuh-execd` then logs `(1311): Invalid command name ' block-ip' provided.` in the agent's `ossec.log` and runs nothing. Edit the channel (**Explore → Active Responses → `<channel>` → Actions → Edit**) and ensure **Executable** is exactly the script name with no surrounding whitespace.
 
+### Linux `block-ip` fallback order
+
+On Linux, `block-ip` tries firewalld, iptables, an iproute2 blackhole route, the legacy `route` command, and finally `/etc/hosts.deny`. The route methods block traffic to the address independently of TCP wrappers. The final `hosts.deny` fallback is retained for minimal Debian and Ubuntu installations where neither route command is installed; it only affects services linked against TCP wrappers, so it is not a general network-level block. An unblock removes the blackhole route through the same method that created it.
+
 ### `block-ip` uses firewalld, not raw iptables
 
 On Linux hosts where the `firewalld` service is active (e.g. CentOS / RHEL), `block-ip` tries firewalld before iptables and adds and reverts the block through firewalld rich rules, not the `iptables INPUT` chain — so `iptables -L -n` shows nothing. Check the actual block with:
