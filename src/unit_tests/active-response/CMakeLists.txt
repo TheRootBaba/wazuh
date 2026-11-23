@@ -17,6 +17,11 @@ if(NOT ${TARGET} STREQUAL "winagent")
     list(APPEND active-response_flags "-Wl,--wrap,access -Wl,--wrap,get_binary_path -Wl,--wrap,wpopenv -Wl,--wrap,wpclose -Wl,--wrap,getpid -Wl,--wrap,setup_and_check_message -Wl,--wrap,get_srcip_from_json -Wl,--wrap,send_keys_and_check_message -Wl,--wrap,wfopen -Wl,--wrap,OS_MoveFile -Wl,--wrap,acquire_ar_lock -Wl,--wrap,release_ar_lock")
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    list(APPEND active-response_names "test_block_ip_unix")
+    list(APPEND active-response_flags "-Wl,--wrap,check_binary_available -Wl,--wrap,acquire_ar_lock -Wl,--wrap,release_ar_lock -Wl,--wrap,execute_command_with_retry")
+endif()
+
 list(LENGTH active-response_names count)
 math(EXPR count "${count} - 1")
 foreach(counter RANGE ${count})
@@ -55,6 +60,20 @@ foreach(counter RANGE ${count})
         )
         set_source_files_properties(${SRC_FOLDER}/active-response/src/block-ip-macos.c PROPERTIES
             COMPILE_DEFINITIONS "__APPLE__;main=block_ip_macos_main"
+        )
+    endif()
+
+    if("${active-response_test_name}" STREQUAL "test_block_ip_unix")
+        target_sources(${active-response_test_name} PRIVATE
+            ${SRC_FOLDER}/active-response/src/helpers/firewall_helpers.c
+            ${SRC_FOLDER}/active-response/src/block-ip-unix.c
+        )
+        target_include_directories(${active-response_test_name} PRIVATE
+            ${SRC_FOLDER}/active-response/src/helpers
+            ${SRC_FOLDER}/active-response/include
+        )
+        set_source_files_properties(${SRC_FOLDER}/active-response/src/block-ip-unix.c PROPERTIES
+            COMPILE_DEFINITIONS "main=block_ip_unix_main"
         )
     endif()
 
