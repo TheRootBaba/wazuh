@@ -33,6 +33,7 @@
 #ifdef PLATFORM_LINUX
 firewall_result_t try_firewalld(const char *srcip, int action, int ip_version, const char *argv0);
 firewall_result_t try_iptables(const char *srcip, int action, int ip_version, const char *argv0);
+firewall_result_t try_iproute2(const char *srcip, int action, int ip_version, const char *argv0);
 #endif
 
 #if defined(PLATFORM_FREEBSD) || defined(PLATFORM_OPENBSD)
@@ -107,8 +108,9 @@ int main(int argc, char **argv) {
 #ifdef PLATFORM_LINUX
         {"firewalld", try_firewalld, true},
         {"iptables", try_iptables, true},
-        {"hostsdeny", try_hostsdeny, false},
+        {"iproute2", try_iproute2, true},
         {"route", try_route, false},
+        {"hostsdeny", try_hostsdeny, false},
 #elif defined(PLATFORM_FREEBSD)
         {"ipfw", try_ipfw, false},
         {"pf", try_pf, false},
@@ -256,6 +258,41 @@ firewall_result_t try_iptables(const char *srcip, int action, int ip_version, co
     os_free(iptables);
 
     return final_result;
+}
+
+/* Linux: use iproute2 to install a blackhole host route. This is available on
+ * distributions that no longer ship the legacy net-tools route command and
+ * blocks all traffic to the address, unlike TCP wrappers rules in hosts.deny.
+ */
+firewall_result_t try_iproute2(const char *srcip, int action, int ip_version, const char *argv0) {
+    char *ip_path = NULL;
+    lock_context_t lock_ctx = {
+        .lock_path = LOCK_PATH,
+        .lock_pid_path = LOCK_FILE,
+        .log_prefix = argv0,
+        .acquired = false
+    };
+
+    if (check_binary_available("ip", &ip_path, argv0) != FIREWALL_SUCCESS) {
+        return FIREWALL_NOT_AVAILABLE;
+    }
+
+    if (acquire_ar_lock(&lock_ctx) == OS_INVALID) {
+        os_free(ip_path);
+        return FIREWALL_EXECUTION_FAILED;
+    }
+
+    const char *family = (ip_version == 4) ? "-4" : "-6";
+    const char *operation = (action == ENABLE_COMMAND) ? "add" : "del";
+    char *exec_cmd[] = {ip_path, (char *)family, "route", (char *)operation,
+                        "blackhole", (char *)srcip, NULL};
+
+    int ret = execute_command_with_retry(argv0, ip_path, exec_cmd);
+
+    release_ar_lock(&lock_ctx);
+    os_free(ip_path);
+
+    return ret == OS_SUCCESS ? FIREWALL_SUCCESS : FIREWALL_EXECUTION_FAILED;
 }
 
 #endif // PLATFORM_LINUX
