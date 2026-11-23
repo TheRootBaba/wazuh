@@ -8,6 +8,7 @@
  */
 
 #include <setjmp.h>
+#include <stdio.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <cmocka.h>
@@ -33,7 +34,7 @@ firewall_result_t __wrap_check_binary_available(const char *binary_name, char **
         return FIREWALL_NOT_AVAILABLE;
     }
 
-    *path_out = strdup("/usr/sbin/ip");
+    os_strdup("/usr/sbin/ip", *path_out);
     assert_non_null(*path_out);
     return FIREWALL_SUCCESS;
 }
